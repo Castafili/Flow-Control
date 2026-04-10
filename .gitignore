@@ -1,0 +1,14 @@
+# Binaries
+flowcontrol
+*.o
+*.out
+
+# Debug symbols and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary and log files
+*.log
+.gemini/
