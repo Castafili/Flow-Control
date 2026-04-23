@@ -671,8 +671,7 @@ int listen_on(int dgram, struct sockaddr_storage *ss) {
 		perror("socket");
 		return -1;
 	}
-	if (!dgram)
-		setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *) &n, sizeof(n));
+	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *) &n, sizeof(n));
 	if (bind(s, (const struct sockaddr *) ss, addrsize(ss)) < 0) {
 		perror("bind");
 		close(s);

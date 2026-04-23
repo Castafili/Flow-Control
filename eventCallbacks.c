@@ -68,14 +68,11 @@ void receive_callback(packet_t *pkt, size_t n) {
             
             printf("Ack (acko) %d sent.\n", receiver_seq_expected);
 
-            sender_seq_next=(sender_seq_next+1)%2;  // update sequence number
+            receiver_seq_expected=(receiver_seq_expected+1)%2;  // update expected sequence number
         }
-        else if (pkt->seqno < receiver_seq_expected) { // duplicate packet case
+        else { // duplicate packet case
             printf("Duplicate packet %d received, resending ACK %d.\n", pkt->seqno, pkt->seqno);
             SEND_ACK_PACKET(pkt->seqno); // resend ACK for duplicate
-        }
-        else {
-            printf("Out of order packet %d received (expected %d). Discarded.\n", pkt->seqno, receiver_seq_expected);
         }
     }
     else if (pkt->type == ACK){ // ACK packet case
@@ -90,7 +87,7 @@ void receive_callback(packet_t *pkt, size_t n) {
             
             RESUME_TRANSMISSION();
         }
-        else if ((waiting_ack && pkt->ackno)+1 < (int16_t)sender_seq_next) { // duplicate ACK case
+        else if (waiting_ack && pkt->ackno != (u_int16_t)sender_seq_next) { // duplicate ACK case
             printf("Duplicate Ack %d received (expected %d). Ignored.\n", pkt->ackno, sender_seq_next);
         }
         else {
