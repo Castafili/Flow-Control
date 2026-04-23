@@ -26,14 +26,10 @@ int log_in = -1;
 int log_out = -1;
 struct config_common c;
 
-// GLOBAL DATA HERE
-int nfd; /* network file descriptor */
-struct sockaddr_storage peer; /* network peer */
+int nfd; 
+struct sockaddr_storage peer;
 int continueExecution;
 
-//syntheticTraffic:
-// If >0, it means we use the synthetic traffic generator; the application sends a flow of messages
-// If ==0, the console is used as the input/output of the application (default config)
 static int syntheticTraffic;
 int synthTrStart;
 int synthDataBlock;
@@ -41,25 +37,20 @@ int synthTxIndex;
 int synthRxIndex;
 int synthTxIndex_1024;
 int synthRxIndex_1024;
+static int rpoll; 
+static int npoll; 
+static int rfd; 
+static int wfd; 
 
-static int rpoll; /* If >0, it means we need to poll the input (console). The value is the offset into cevents array */
-static int npoll; /* If >0, it means we need to poll the network. The value is the offset into cevents array */
-
-static int rfd; /* input file descriptor */
-static int wfd; /* output file descriptor */
-//static int nfd; /* network file descriptor */
-//static struct sockaddr_storage peer; /* network peer */
-
-static char read_eof; /* zero if haven't received EOF */
-static char write_eof; /* send EOF when output queue drained */
-static char write_err; /* zero if it's okay to write to wfd */
-static char xoff; /* non-zero to pause reading */
+static char read_eof; 
+static char write_eof; 
+static char write_err; 
+static char xoff; 
 
 static void conn_mkevents(void);
 static int debug_recv(int s, packet_t *buf, size_t len, int flags, struct sockaddr_storage *from);
 int compareDates(struct timespec time1, struct timespec time2);
 
-//int cevents_generation;
 static struct pollfd *cevents;
 static int ncevents;
 static int *evreaders;
@@ -67,24 +58,21 @@ static struct pollfd netPolling;
 
 
 
-static int pausedTransmission; //0: packets can be transmitted; >0: do not generate traffic (never call
+static int pausedTransmission; 
 static packet_t *packet_ptr;
 static packet_t *corruptedPacket;
 
-// Variables related to timers
-// int gettimeofday(struct timeval *tv, struct timezone *tz);	, with tz being NULL
 #define TIMER_COUNT 16
 int activeTimerCount;
-int timerSet[TIMER_COUNT]; //If >0, the given timer is set, and the expiration time is in the corresponding field in timerExpirationDate
-struct timespec timerExpirationDate[TIMER_COUNT]; //Contains the specific date (in ns) in which each timer expires
+int timerSet[TIMER_COUNT]; 
+struct timespec timerExpirationDate[TIMER_COUNT]; 
 
-//Stats
 long receivedPackets, receivedCorrectPackets, receivedCorruptPackets;
 long sentPackets, sentCorrectPackets, sentCorruptPackets;
-long long generatedApplicationBytes, acceptedApplicationBytes; 	//Correct application bytes, not headers
-long long sentBytes, sentCorrectBytes, sentCorruptBytes;			//Overall: Headers + application, including correct and corrupt packets
-struct timespec startRxTime;	//The time of the first received packet. Valid if receivedPackets > 0
-struct timespec startTxTime;	//The time of the first generated packet. Valid if generatedBytes > 0
+long long generatedApplicationBytes, acceptedApplicationBytes; 	
+long long sentBytes, sentCorrectBytes, sentCorruptBytes;			
+struct timespec startRxTime;	
+struct timespec startTxTime;	
 int printedStats;
 struct timespec lastStatPrintTime;
 
@@ -136,22 +124,18 @@ int SEND_PACKET(const packet_t *pkt, size_t len) {
 	assert(sentPackets >= 0);
 	sentPackets++;
 
-	//Check if we can send data...
-	// wait for events on the sockets, 3.5 second timeout
 	rv = poll(&netPolling, 1, 0);
 	if (rv == -1) {
-	    perror("poll SEND_PACKET"); // error occurred in poll()
+	    perror("poll SEND_PACKET"); 
 	} else if (rv == 0) {
-	    //printf("Network socket not available to send data!!\n");
 	    return -1;
 	} else {
 		assert(netPolling.revents & POLLOUT);
 	}
-	    // check for events on s1:
 
-	if (randomValue < c.probError) {	//packet corruption!!
+	if (randomValue < c.probError) {	
 		DEBUG_ERRORS(1, "Sent packet is corrupted!! (Probability: %f)", c.probError);
-		corruptedPacket->cksum = 0;	//Simple model!!! 1: checksum OK; 0: checksum fails!!
+		corruptedPacket->cksum = 0;	
 		corruptedPacket->len = rand() % 516;
 		corruptedPacket->seqno = rand() % 1024;
 		corruptedPacket->type = rand() % 1024;
@@ -175,7 +159,6 @@ int SEND_PACKET(const packet_t *pkt, size_t len) {
 			sentCorrectBytes += n;
 		}
 		if (pkt->type == DATA) {
-			//printf("Packet %d sent, block %u\n", pkt->seqno, (unsigned char) pkt->data[0]);
 		}
 	}
 
@@ -185,10 +168,8 @@ int SEND_PACKET(const packet_t *pkt, size_t len) {
 		return n;
 	}
 	if (n != len) {
-		//printf("Error: Sent %d bytes, but packet size is %d bytes\n", n, len);
 		continueExecution = 0;
 		return n;
-		//assert(n==len);
 	}
 	assert(sentBytes >= 0);
 	sentBytes += n;
@@ -210,7 +191,7 @@ int SEND_DATA_PACKET(packetType_t pckType, uint16_t length, uint32_t ackNo, uint
 	packet_ptr->type = (uint16_t) pckType;
 	packet_ptr->ackno = (uint16_t) ackNo;
 	packet_ptr->seqno = (uint16_t) seqno;
-	dataLength = length - 10;	//Header length: 10 bytes
+	dataLength = length - 10;	
 	memcpy(&(packet_ptr->data), data, dataLength);
 	n = SEND_PACKET(packet_ptr, length);
 	DEBUG_SEND(1, "Data packet sent, seq. index %d\n", seqno);
@@ -226,10 +207,10 @@ int SEND_ACK_PACKET(uint32_t ackNo) {
 	int n;
 
 	packet_ptr->cksum = 1;
-	packet_ptr->len = 8; //ACK packet
+	packet_ptr->len = 8; 
 	packet_ptr->type = (uint16_t) ACK;
 	packet_ptr->ackno = ackNo;
-	n = SEND_PACKET(packet_ptr, 8);	//ACK packets are 8 bytes
+	n = SEND_PACKET(packet_ptr, 8);	
 	DEBUG_SEND(1, "ACK packet sent, ACK index: %d", ackNo);
 	return (n == 8);
 }
@@ -249,7 +230,7 @@ int ACCEPT_DATA(const void *_buf, size_t _n) {
 	if (log_out >= 0)
 		t = write(log_out, buf, n);
 
-	if (syntheticTraffic) {	//The first byte indicates the sequence
+	if (syntheticTraffic) {	
 		assert((synthRxIndex +1)%256 == synthRxIndex_1024 % 256);
 		if (_n != synthDataBlock) {
 			printf("Accepted block of %d bytes, but the application sends blocks of %d bytes.\n", n, synthDataBlock);
@@ -265,7 +246,6 @@ int ACCEPT_DATA(const void *_buf, size_t _n) {
 		if (firstByte != synthRxIndex) {
 			indexDiff = (synthRxIndex - firstByte) % 256;
 			if (indexDiff == 0) {
-				//printf("synthRxIndex = %d, firstByte = %d\n", synthRxIndex, firstByte);
 				fflush(stdout);
 			}
 			assert(indexDiff != 0);
@@ -279,7 +259,6 @@ int ACCEPT_DATA(const void *_buf, size_t _n) {
 			continueExecution = 0;
 			return (-1);
 		} else {
-			//printf("\t\tAccepted block %d\n", firstByte);
 		}
 		synthRxIndex = (synthRxIndex + 1) % 256;
 		synthRxIndex_1024 = (synthRxIndex_1024 + 1) % 1024;
@@ -323,7 +302,6 @@ int READ_DATA_FROM_APP_LAYER(void *buf, size_t _n) {
 		r = n;
 		DEBUG_SEND(1, "Data block of %d bytes generated", n);
 		DEBUG_SEND(1, "Block index: %d (%d)", synthTxIndex_1024-1, synthTxIndex);
-		//printf("Block %d generated\n", synthTxIndex);
 		synthTxIndex = (synthTxIndex + 1) % 256;
 		synthTxIndex_1024 = (synthTxIndex_1024 + 1) % 1024;
 		assert(synthTxIndex>=0);
@@ -349,7 +327,7 @@ int READ_DATA_FROM_APP_LAYER(void *buf, size_t _n) {
 		cevents[rpoll].events |= POLLIN;
 	}
 	assert(generatedApplicationBytes >= 0);
-	if (generatedApplicationBytes == 0) {	//First packet! Start the timer for stats
+	if (generatedApplicationBytes == 0) {	
 		clock_gettime(CLOCK_MONOTONIC, &startTxTime);
 	}
 	generatedApplicationBytes += r;
@@ -357,13 +335,6 @@ int READ_DATA_FROM_APP_LAYER(void *buf, size_t _n) {
 
 }
 
-/*
- * Sets the timer timerIndex to expire in delay_in_ns ns.
- * If the timer is already set, it is overwritten.
- * Return value:
- * -1 if the timer was not set
- * Otherwise, the remaining time to expire (in ns) with the previous set
- */
 long SET_TIMER(int timerIndex, long delay_in_ns) {
 	struct timespec currentTime, timerNewTime, timerOldTime;
 
@@ -379,11 +350,11 @@ long SET_TIMER(int timerIndex, long delay_in_ns) {
 	timerOldTime = timerExpirationDate[timerIndex];
 	timerExpirationDate[timerIndex] = timerNewTime;
 	DEBUG_TIMER(2, "Expiration time: %d s %ld ns", (int) timerNewTime.tv_sec, timerNewTime.tv_nsec);
-	if (timerSet[timerIndex]) { //The timer was already set!
+	if (timerSet[timerIndex]) {
 		assert(activeTimerCount > 0);
 		assert(activeTimerCount <= TIMER_COUNT);
 		return compareDates(timerOldTime, currentTime);
-	} else { //The timer was not set!
+	} else {
 		assert(activeTimerCount < TIMER_COUNT);
 		activeTimerCount++;
 		timerSet[timerIndex] = 1;
@@ -391,11 +362,6 @@ long SET_TIMER(int timerIndex, long delay_in_ns) {
 	}
 }
 
-/*
- * This function clears the timer with index timerIndex
- * It returns -1 if the timer wasn't set; otherwise, it
- * returns the time remaining for the expiration date, in ns
- */
 long CLEAR_TIMER(int timerIndex) {
 	struct timespec currentTime;
 
@@ -403,7 +369,7 @@ long CLEAR_TIMER(int timerIndex) {
 		return -1;
 	assert(activeTimerCount > 0);
 	if (timerSet[timerIndex]) {
-		timerSet[timerIndex] = 0; //Unset the timer!
+		timerSet[timerIndex] = 0;
 		DEBUG_TIMER(2, "Timer %d cleared", timerIndex);
 		activeTimerCount--;
 		clock_gettime(CLOCK_MONOTONIC, &currentTime);
@@ -414,14 +380,12 @@ long CLEAR_TIMER(int timerIndex) {
 }
 
 int VALIDATE_CHECKSUM(const packet_t *pkt) {
-	if (pkt->cksum == 1) { //Correct packet
+	if (pkt->cksum == 1) { // teoricamente il packet è quello giusto (senza farsi troppe domande)
 		DEBUG_ERRORS(2, "Packet checksum validation: OK");
-	} else if (pkt->cksum == 0) {	//Packet with errors
+	} else if (pkt->cksum == 0) {
 		DEBUG_ERRORS(2, "Packet checksum validation: FAILS!!");
 	} else {
-		//printf("Received packet with checksum %d\n", pkt->cksum);
-		//fflush(stdout);
-		//continueExecution = 0;
+		DEBUG_ERRORS(2, "Packet checksum validation: UNKNOWN");
 	}
 	return pkt->cksum;
 }
@@ -441,39 +405,30 @@ static void conn_mkevents(void) {
 	size_t n = 2;
 	int i;
 
-	//printf("conn_mkevents\n");
-	if (read_eof) {		//The input connection (stdin) does not work!!
+	if (read_eof) {
 		rpoll = 0;
 	} else {
 		rpoll = n++;
 	}
 	npoll = n++;
-	//printf("Pollfd size n=%d\n", n);
 
 	e = xmalloc(n * sizeof(*e));
 	memset(e, 0, n * sizeof(*e));
 	if (cevents) {
-		//If the communication events had been defined, reuse the previous cevents[0] value
-		//cevents[0] seems to include the connections whose data is finished
 		e[0] = cevents[0];
 	} else {
-		//Define a null file descriptor in e[0]
 		e[0].fd = -1;
 	}
-	e[1].fd = 2; /* Do catch errors on stderr */
+	e[1].fd = 2;
 
-	//if (syntheticTraffic == 0) {		//Employ the console as the input/output
-	if (rpoll) { //Capture read events in the connection identified by rfd, which is
-		e[rpoll].fd = rfd; //e[3]
-		//printf("\tC rpoll = %d  ---- cevents[%d].fd=%d\n", rpoll, rpoll, rfd);
+	if (rpoll) { 
+		e[rpoll].fd = rfd; 
 		if (!xoff)
 			e[rpoll].events |= POLLIN;
 	}
-	//}
 
 	if (npoll) {
-		//printf("\tC npoll = %d ---- cevents[%d].fd=%d\n", npoll, npoll, nfd);
-		e[npoll].fd = nfd; //e[4]
+		e[npoll].fd = nfd; 
 		e[npoll].events |= POLLIN;
 	}
 
@@ -486,9 +441,9 @@ static void conn_mkevents(void) {
 
 	free(cevents);
 	free(evreaders);
-	cevents = e; //Events
-	ncevents = n; //Network
-	evreaders = r; //Read
+	cevents = e; 
+	ncevents = n; 
+	evreaders = r; 
 
 	netPolling.fd=nfd;
 	netPolling.events = POLLOUT;
@@ -498,18 +453,11 @@ static void conn_mkevents(void) {
 void generateSyntheticData() {
 	if (pausedTransmission)
 		return;
-	send_callback();	//The application is always ready to generate a flow of data!!
+	send_callback();	//Il bomber qua è sempre pronto a generare traffico, se non è in pausa
 }
 
 void check_events() {
 	int n, i, j;
-	//static int last_cg;
-
-	//if (last_cg != cevents_generation) {
-	//	conn_mkevents();
-	//	cevents_generation = last_cg;
-	//}
-
 	if (cevents[0].fd >= 0) {
 		n = poll(cevents, ncevents, 0);
 	} else {
@@ -537,7 +485,6 @@ void check_events() {
 					exit(1);
 				} else if (cevents[i].fd == nfd) {
 					packet_t pkt;
-					//printf("Packet received!!! \n");
 					int len = debug_recv(nfd, &pkt, sizeof(pkt), 0, NULL );
 					if (len < 0) {
 						if (errno != EAGAIN) {
@@ -545,8 +492,8 @@ void check_events() {
 							pause();
 						}
 					} else {
-						if (len != pkt.len) { //Packet was received incomplete. Corrupt!!!
-							pkt.cksum = 0;	//Simple model!!! 1: checksum OK; 0: checksum fails!!
+						if (len != pkt.len) {
+							pkt.cksum = 0;	
 							pkt.len = rand() % 516;
 							pkt.seqno = rand() % 1024;
 							pkt.type = rand() % 1024;
@@ -564,7 +511,7 @@ void check_events() {
 									len, pkt.len, pkt.seqno, pkt.ackno);
 						}
 						assert(receivedPackets >=0);
-						if (receivedPackets == 0) {	//First received packet!! Start the reception timer!!
+						if (receivedPackets == 0) {	
 							clock_gettime(CLOCK_MONOTONIC, &startRxTime);
 						}
 						receivedPackets++;
@@ -578,7 +525,7 @@ void check_events() {
 							receivedCorruptPackets++;
 						}
 						receive_callback(&pkt, len);
-						//memset(&pkt, 0xc9, len); /* for debugging */
+						//memset(&pkt, 0xc9, len); serve per il debugging (stò già diventando pazzo)
 					}
 				}
 			} else {
@@ -587,11 +534,7 @@ void check_events() {
 				exit(1);
 			}
 		}
-		//if ((cevents[i].revents & (POLLOUT | POLLHUP | POLLERR))	&& evwriters[i])
-		//	conn_drain(evwriters[i]);
 		if (cevents[i].revents & (POLLHUP | POLLERR)) {
-			/* If stderr has an error, the tester has probably died, so exit
-			 * immediately. */
 			if (cevents[i].fd == 2) {
 				perror("POLLHUP | POLLERR");
 				pause();
@@ -700,7 +643,7 @@ int get_address(struct sockaddr_storage *ss, int local, int dgram, int family, c
 	hints.ai_socktype = dgram ? SOCK_DGRAM : SOCK_STREAM;
 
 	if (local)
-		hints.ai_flags = AI_PASSIVE; /* passive means for local address */
+		hints.ai_flags = AI_PASSIVE; 
 	err = getaddrinfo(host, port, &hints, &ai);
 	if (err) {
 		if (local)
@@ -746,7 +689,6 @@ int listen_on(int dgram, struct sockaddr_storage *ss) {
 		return s;
 	}
 
-	/* If bound port 0, kernel selectec port, so we need to read it back. */
 	len = sizeof(*ss);
 	if (getsockname(s, (struct sockaddr *) ss, &len) < 0) {
 		perror("getsockname");
@@ -797,16 +739,10 @@ void initialize_timers() {
 	int i;
 	activeTimerCount = 0;
 	for (i = 0; i < TIMER_COUNT; i++) {
-		timerSet[i] = 0;
-		//Note that timerExpirationDate[i] never needs to be set, since its value is only valid when timerSet[i] > 0
+		timerSet[i] = 0; // timerExpiration[i] non tocca toccarlo, visto che è valido solo se timerSet[i] > 0
 	}
 }
 
-/*
- * Returns the difference of time between the two dates provided, in nanoseconds
- * Return 0: Both dates are the same
- * Positive return value: The second  0, 1 or -1 depending on the two dates provided
- */
 int compareDates(struct timespec time1, struct timespec time2) {
 	return (time1.tv_sec - time2.tv_sec) * 1000000000 + (time1.tv_nsec - time2.tv_nsec);
 
@@ -833,9 +769,6 @@ float diffDatesSeconds(struct timespec time1, struct timespec time2) {
 	return seconds;
 }
 
-/*
- * Checks if any of the active timers in the system has expired, and calls the corresponding callback
- */
 void check_timers() {
 	int i;
 	struct timespec current_time;
@@ -844,8 +777,8 @@ void check_timers() {
 		clock_gettime(CLOCK_MONOTONIC, &current_time);
 		for (i = 0; i < TIMER_COUNT; i++) {
 			if (timerSet[i]) {
-				if (compareDates(current_time, timerExpirationDate[i]) > 0) {		//The timer has expired!
-					timerSet[i] = 0; //clear the timer, it is expiring now!
+				if (compareDates(current_time, timerExpirationDate[i]) > 0) {		//The timer expired (meme del bianconiglio che indica l'orologio)
+					timerSet[i] = 0;
 					activeTimerCount--;
 					assert(activeTimerCount>=0);
 					DEBUG_TIMER(1, "Timer %d expires", i);
@@ -860,24 +793,22 @@ void print_stats() {
 	struct timespec current_time;
 	float TxSpeed, RxSpeed, TxTime, RxTime;
 
-	if (printedStats || receivedPackets || generatedApplicationBytes) {	//At least one timers is started!!
+	if (printedStats || receivedPackets || generatedApplicationBytes) {	//Almeno una è partita dios mios
 		clock_gettime(CLOCK_MONOTONIC, &current_time);
 	} else {
-		return;	//We have no stats to print yet
+		return;
 	}
-	//diffDatesSeconds(struct timespec time1, struct timespec time2) {
 	if (printedStats && diffDatesSeconds(current_time, lastStatPrintTime) < 10) {
 		return;
 	}
-	//Soooo... it's time to print stats!
 	TxTime = diffDatesSeconds(current_time, startTxTime);
 	if (generatedApplicationBytes && TxTime > 10) {
 
 		printf("\n\tTX STATS: Packets: %ld, Bytes: %lld, Aver. speed: ", sentPackets, sentBytes);
 		TxSpeed = 8.0 * sentBytes / TxTime;
-		if (TxSpeed <=10000){	// < 10 kbps
+		if (TxSpeed <=10000){	
 			printf(" %.2f bps\n", TxSpeed);
-		} else if (TxSpeed <= 1000000){ // < 1 Mbps
+		} else if (TxSpeed <= 1000000){ 
 			printf(" %.2f kbps\n", TxSpeed/1000.0);
 		} else{
 			printf(" %.2f Mbps\n", TxSpeed/1000000.0);
@@ -888,9 +819,9 @@ void print_stats() {
 		printf("\tRX STATS: Packets: %ld (%.1f%% corrupt), App. bytes: %lld, Aver. speed (app. level): ", receivedPackets,
 				receivedCorruptPackets * 100.0 / receivedPackets, acceptedApplicationBytes);
 		RxSpeed = 8.0 * acceptedApplicationBytes / RxTime;
-		if (RxSpeed <=10000){	// < 10 kbps
+		if (RxSpeed <=10000){	
 			printf(" %.2f bps\n", RxSpeed);
-		} else if (RxSpeed <= 1000000){ // < 1 Mbps
+		} else if (RxSpeed <= 1000000){ 
 			printf(" %.2f kbps\n", RxSpeed/1000.0);
 		} else{
 			printf(" %.2f Mbps\n", RxSpeed/1000000.0);
@@ -921,14 +852,13 @@ int main(int argc, char **argv) {
 	struct sockaddr_storage ss;
 	struct sigaction sa;
 
-	/* Ignore SIGPIPE, since we may get a lot of these */
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &sa, NULL );
 
 	memset(&c, 0, sizeof(c));
 	c.window = 1;
-	c.timeout = 10000000;	//default timer:10 ms
+	c.timeout = 10000000;	
 	syntheticTraffic = 0;
 	synthTrStart = 0;
 	synthDataBlock = 500;
@@ -1002,26 +932,25 @@ int main(int argc, char **argv) {
 	}
 	peer = sr;
 
-	rfd = 0; //read file descriptor 0: stdin
-	wfd = 1; //write file descriptor 1: stdout
+	rfd = 0; 
+	wfd = 1; 
 	make_async(rfd);
 	make_async(wfd);
 	make_async(nfd);
 	setbuf(stdout, NULL );
 
 	initialize_timers();
-	srand(time(NULL ));	//Random number generator initialization
+	srand(time(NULL ));	
 	packet_ptr = xmalloc(sizeof(packet_t));
 	memset(packet_ptr, 0, sizeof(packet_t));
 	corruptedPacket = xmalloc(sizeof(packet_t));
 	memset(corruptedPacket, 0, sizeof(packet_t));
-	corruptedPacket->cksum = 0;	//Redundant...
+	corruptedPacket->cksum = 0;	
 
-//Stats
 	receivedPackets = receivedCorrectPackets = receivedCorruptPackets = 0;
 	sentPackets = sentCorrectPackets = sentCorruptPackets = 0;
 	generatedApplicationBytes = acceptedApplicationBytes = 0;
-	sentBytes = sentCorrectBytes = sentCorruptBytes = 0;	//Overall: Headers + application, including correct and corrupt packets
+	sentBytes = sentCorrectBytes = sentCorruptBytes = 0;	
 	printedStats = 0;
 
 	connection_initialization(c.window, c.timeout);

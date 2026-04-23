@@ -1,6 +1,6 @@
 # Flow-Control Project - Networking Course (UniCan, Santander)
 
-This project implements a reliable data transfer protocol over a simulated network link using a **Stop-and-Wait** mechanism. It was developed as part of the "Networking" course at the University of Cantabria (UniCan) in Santander.
+This project implements a reliable data transfer protocol over a simulated network link using a **Stop-and-Wait** mechanism.
 
 ## Project Overview
 
@@ -75,7 +75,6 @@ The core logic is implemented in `eventCallbacks.c`, which interacts with a prov
 
 ### Prerequisites
 - GCC compiler
-- Linux environment (required for `-lrt` and timing functions)
 
 ### Building the Project
 Run the following command in the project directory:
@@ -97,4 +96,4 @@ To start the program:
 - `-d <level>`: Enable debugging output (levels 1-3).
 
 ## Author
-Developed for the **Networking** course at **UniCan** (Universidad de Cantabria), Santander.
+Developed by Davide Maracaglia for the **G661 - Introducción a las Redes de Computadores** course at **UniCan** (Universidad de Cantabria), Santander.
